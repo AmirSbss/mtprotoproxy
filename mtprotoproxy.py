@@ -176,6 +176,42 @@ def try_setup_uvloop():
     except ImportError:
         pass
 
+    
+def try_use_tgcrypto_module():
+    import tgcrypto
+
+    def create_aes_ctr(key, iv):
+        class EncryptorAdapter:
+            def __init__(self, key, iv):
+                self.key = key
+                self.iv = iv
+
+            def encrypt(self, data):
+                return tgcrypto.ctr256_encrypt(data, self.key, self.iv, bytes(1))
+
+            def decrypt(self, data):
+                return tgcrypto.ctr256_decrypt(data, self.key, self.iv, bytes(1))
+
+        iv_bytes = int.to_bytes(iv, 16, "big")
+        return EncryptorAdapter(key, iv)
+
+    def create_aes_cbc(key, iv):
+        class EncryptorAdapter:
+            def __init__(self, key, iv):
+                self.key = key
+                self.iv = iv
+
+            def encrypt(self, data):
+                return tgcrypto.cbc256_encrypt(data, self.key, self.iv)
+
+            def decrypt(self, data):
+                return tgcrypto.cbc256_decrypt(data, self.key, self.iv))
+
+        iv_bytes = int.to_bytes(iv, 16, "big")
+        return EncryptorAdapter(key, iv)
+
+    return create_aes_ctr, create_aes_cbc
+
 
 def try_use_cryptography_module():
     from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -259,12 +295,15 @@ def use_slow_bundled_cryptography_module():
 
 
 try:
-    create_aes_ctr, create_aes_cbc = try_use_cryptography_module()
+    create_aes_ctr, create_aes_cbc = try_use_tgcrypto_module()
 except ImportError:
     try:
-        create_aes_ctr, create_aes_cbc = try_use_pycrypto_or_pycryptodome_module()
+        create_aes_ctr, create_aes_cbc = try_use_cryptography_module()
     except ImportError:
-        create_aes_ctr, create_aes_cbc = use_slow_bundled_cryptography_module()
+        try:
+            create_aes_ctr, create_aes_cbc = try_use_pycrypto_or_pycryptodome_module()
+        except ImportError:
+            create_aes_ctr, create_aes_cbc = use_slow_bundled_cryptography_module()
 
 
 def print_err(*params):
